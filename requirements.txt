@@ -1,0 +1,12 @@
+pandas
+numpy
+sqlalchemy
+pyodbc
+python-dotenv
+
+mlxtend
+streamlit 
+requests
+plotly
+
+redis

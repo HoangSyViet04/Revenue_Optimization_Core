@@ -1,0 +1,23 @@
+# 1. Bỏ qua file cấu hình chứa mật khẩu (QUAN TRỌNG NHẤT)
+.env
+
+# 2. Bỏ qua thư mục môi trường ảo (nếu có)
+venv/
+env/
+.venv/
+
+# 3. Bỏ qua file rác của Python
+__pycache__/
+*.pyc
+
+# 4. Bỏ qua file hệ thống
+.DS_Store
+
+# 5. Bỏ qua các file và thư mục test
+tests/
+test_*.py
+*_test.py
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/

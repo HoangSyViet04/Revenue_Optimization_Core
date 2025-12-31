@@ -1,0 +1,14 @@
+artifact_uri: file:///D:/Learn/RevenueCore/mlruns/185902576948923201/78a86da2e485430d88f25a5840027197/artifacts
+end_time: 1767091434150
+entry_point_name: ''
+experiment_id: '185902576948923201'
+lifecycle_stage: active
+run_id: 78a86da2e485430d88f25a5840027197
+run_name: luminous-boar-903
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1767091416593
+status: 3
+tags: []
+user_id: hsvie
