@@ -22,7 +22,7 @@ Trong thương mại điện tử, hai bài toán lớn nhất ảnh hưởng tr
 - 🔹 **Tối ưu hiệu năng hệ thống** bằng Redis Caching, đảm bảo phản hồi **< 10ms** ngay cả khi chịu tải cao.
 
 ---
-<img width="1857" height="935" alt="image" src="https://github.com/user-attachments/assets/89684cf0-0857-45e4-8a16-69822cf1e665" />
+<img src="data/asset/demo.jpg" width="600" alt="demo" />
 
 ---
 ## 🌟 Tính năng nổi bật
