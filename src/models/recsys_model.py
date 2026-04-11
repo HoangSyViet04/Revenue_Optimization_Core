@@ -15,11 +15,11 @@ class RecommendationEngine:
     def __init__(self):
         self.rules = None
 
-    def train(self, min_support=0.00005, min_confidence=0.005):
+    def train(self, min_support=0.02, min_confidence=0.2):
         """
         Huấn luyện hệ thống gợi ý.
-        - min_support: Tần suất xuất hiện tối thiểu của combo.
-        - min_confidence: Độ tin cậy (Nếu mua A thì 10% khả năng mua B).
+        - min_support: Tần suất xuất hiện tối thiểu của combo (2% đơn hàng).
+        - min_confidence: Độ tin cậy tối thiểu (20%).
         """
         print("BẮT ĐẦU TÌM KIẾM LUẬT KẾT HỢP (ASSOCIATION RULES)...")
         
@@ -91,9 +91,9 @@ if __name__ == "__main__":
     recsys.train()
     
     # 2. Test thử gợi ý
-    test_cart = ['bed_bath_table'] # Giả sử khách đang mua đồ phòng ngủ
+    test_cart = ['WHITE HANGING HEART T-LIGHT HOLDER']  # Sản phẩm phổ biến trong UK Retail
     print(f"\nGiỏ hàng hiện tại: {test_cart}")
-    print("💡 Gợi ý:")
+    print("Gợi ý:")
     recs = recsys.recommend(test_cart)
     for r in recs:
         print(f"- {r['Product']} (Độ tin cậy: {r['Confidence']}) | {r['Reason']}")

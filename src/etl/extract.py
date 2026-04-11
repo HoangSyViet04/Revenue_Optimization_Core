@@ -4,37 +4,19 @@ from src.config import RAW_DATA_DIR
 
 def extract_data():
     """
-    Đọc dữ liệu thô từ file CSV (Olist Dataset).
-    Trả về một dictionary chứa các DataFrames.
+    Đọc dữ liệu thô từ file CSV (UK Online Retail II Dataset).
+    Gộp 2 file (Year 2009-2010, Year 2010-2011) thành 1 DataFrame.
     """
-    print("Đang đọc dữ liệu từ CSV...")
+    print("Đang đọc dữ liệu từ CSV (UK Online Retail II)...")
     
     try:
-        # 1. Đọc Orders
-        orders = pd.read_csv(os.path.join(RAW_DATA_DIR, 'olist_orders_dataset.csv'))
+        df1 = pd.read_csv(os.path.join(RAW_DATA_DIR, 'Year 2009-2010.csv'), encoding='latin1')
+        df2 = pd.read_csv(os.path.join(RAW_DATA_DIR, 'Year 2010-2011.csv'), encoding='latin1')
         
-        # 2. Đọc Order Items (Chi tiết đơn hàng)
-        items = pd.read_csv(os.path.join(RAW_DATA_DIR, 'olist_order_items_dataset.csv'))
+        df = pd.concat([df1, df2], ignore_index=True)
+        print(f"Đã đọc {len(df):,} dòng dữ liệu thô.")
         
-        # 3. Đọc Products
-        products = pd.read_csv(os.path.join(RAW_DATA_DIR, 'olist_products_dataset.csv'))
-        
-        # 4. Đọc Category Translation (Để dịch tên danh mục)
-        translations = pd.read_csv(os.path.join(RAW_DATA_DIR, 'product_category_name_translation.csv'))
-        
-        # 5. Đọc Customers
-        customers = pd.read_csv(os.path.join(RAW_DATA_DIR, 'olist_customers_dataset.csv'))
-
-        print("Extract dữ liệu thành công!")
-        
-        # Đóng gói vào dict để dễ truyền sang bước Transform
-        return {
-            'orders': orders,
-            'items': items,
-            'products': products,
-            'translations': translations,
-            'customers': customers
-        }
+        return {'transactions': df}
         
     except FileNotFoundError as e:
         print(f"Không tìm thấy file dữ liệu: {e}")

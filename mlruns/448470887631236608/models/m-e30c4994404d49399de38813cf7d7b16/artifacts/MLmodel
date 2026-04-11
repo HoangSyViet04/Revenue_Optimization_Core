@@ -1,0 +1,23 @@
+artifact_path: file:///D:/Project/RevenueCore/mlruns/448470887631236608/models/m-e30c4994404d49399de38813cf7d7b16/artifacts
+flavors:
+  lightgbm:
+    code: null
+    data: model.lgb
+    lgb_version: 4.6.0
+    model_class: lightgbm.basic.Booster
+    serialization_format: cloudpickle
+    skops_trusted_types: null
+  python_function:
+    data: model.lgb
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.lightgbm
+    python_version: 3.11.0
+mlflow_version: 3.11.1
+model_id: m-e30c4994404d49399de38813cf7d7b16
+model_size_bytes: 97429
+model_uuid: m-e30c4994404d49399de38813cf7d7b16
+prompts: null
+run_id: d6606449d7374a5182049e1a27623bbe
+utc_time_created: '2026-04-11 03:54:13.001541'

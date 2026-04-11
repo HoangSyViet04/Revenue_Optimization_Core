@@ -1,6 +1,8 @@
-artifact_location: file:///D:/Learn/RevenueCore/mlruns/0
-creation_time: 1767091415643
+artifact_location: file:///D:/Project/RevenueCore/mlruns/0
+creation_time: 1775879646006
 experiment_id: '0'
-last_update_time: 1767091415643
+last_update_time: 1775879646006
 lifecycle_stage: active
 name: Default
+trace_location: null
+workspace: default

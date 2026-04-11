@@ -4,74 +4,81 @@ import numpy as np
 def transform_data(raw_data):
     """
     Nhận vào dict raw_data (từ bước Extract), thực hiện:
-    1. Merge bản dịch category.
-    2. Giả lập tồn kho (Inventory Simulation).
-    3. Làm sạch kiểu dữ liệu.
+    1. Lọc giao dịch hợp lệ (bỏ đơn hủy, quantity âm, thiếu Customer ID).
+    2. Tạo bảng Products, Customers, Orders, OrderItems chuẩn hóa.
     """
-    print("Đang xử lý và giả lập dữ liệu (Transform)...")
+    print("Đang xử lý và làm sạch dữ liệu (Transform)...")
     
-    orders = raw_data['orders']
-    items = raw_data['items']
-    products = raw_data['products']
-    translations = raw_data['translations']
-    customers = raw_data['customers']
-
-    # --- 1. XỬ LÝ CATEGORIES & PRODUCTS ---
-    # Merge tên tiếng Anh vào
-    products = products.merge(translations, on='product_category_name', how='left')
-    products['product_category_name_english'] = products['product_category_name_english'].fillna('Unknown')
+    df = raw_data['transactions'].copy()
     
-    # Tạo bảng Categories duy nhất
-    df_categories = products[['product_category_name', 'product_category_name_english']].drop_duplicates()
-    df_categories.columns = ['CategoryNameOriginal', 'CategoryNameEN']
+    # --- 1. LÀM SẠCH DỮ LIỆU ---
+    # Bỏ đơn hủy (Invoice bắt đầu bằng 'C')
+    df['Invoice'] = df['Invoice'].astype(str)
+    df = df[~df['Invoice'].str.startswith('C')]
     
-    # Giả lập Tồn kho & Giá gốc cho Products
-    # Logic: Giá gốc cao hơn giá bán trung bình 1 xíu. Tồn kho random.
-    products['CurrentStock'] = np.random.randint(0, 100, size=len(products))
-    products['OriginalPrice'] = 0.0 # Tạm thời để 0, logic phức tạp tính sau
+    # Bỏ Quantity <= 0, Price <= 0, thiếu Customer ID
+    df = df[(df['Quantity'] > 0) & (df['Price'] > 0) & (df['Customer ID'].notna())]
     
-    # Đổi tên cột cho khớp với SQL
-    df_products = products[['product_id', 'product_category_name_english', 'CurrentStock', 'OriginalPrice']]
-    df_products.columns = ['ProductOriginalID', 'CategoryNameEN', 'CurrentStock', 'OriginalPrice']
-
-    # --- 2. XỬ LÝ CUSTOMERS ---
-    df_customers = customers[['customer_id', 'customer_city', 'customer_state', 'customer_unique_id']]
-    # customer_id trong Olist thực ra là transaction-level id, unique_id mới là user thật
-    # Tuy nhiên để đơn giản bước đầu, ta dùng customer_id làm ID đại diện
-    df_customers.columns = ['CustomerUniqueID', 'CustomerCity', 'CustomerState', 'RealUniqueID']
-    df_customers = df_customers.drop_duplicates(subset=['CustomerUniqueID'])
-
-    # --- 3. XỬ LÝ ORDERS ---
-    # Bước 3.1: Tính tổng tiền từng đơn từ bảng Items gốc
-    # Group by order_id và cộng dồn price + freight
-    order_sums = items.groupby('order_id')[['price', 'freight_value']].sum().reset_index()
-    order_sums['TotalAmount'] = order_sums['price'] + order_sums['freight_value']
+    # Bỏ StockCode không phải sản phẩm thật (POST, DOT, M, BANK CHARGES, etc.)
+    non_product_codes = ['POST', 'DOT', 'M', 'BANK CHARGES', 'PADS', 'CRUK', 'C2', 'D']
+    df = df[~df['StockCode'].isin(non_product_codes)]
     
-    # Bước 3.2: Merge vào bảng Orders
-    df_orders = orders.merge(order_sums[['order_id', 'TotalAmount']], on='order_id', how='left')
+    # Bỏ Description null
+    df = df.dropna(subset=['Description'])
     
-    # Fill 0 cho những đơn không có item (tránh lỗi NaN)
-    df_orders['TotalAmount'] = df_orders['TotalAmount'].fillna(0.0)
-
-    # Bước 3.3: Chuẩn hóa cột
-    df_orders = df_orders[['order_id', 'customer_id', 'order_purchase_timestamp', 'order_status', 'TotalAmount']]
-    df_orders.columns = ['OrderOriginalID', 'CustomerUniqueID', 'OrderDate', 'OrderStatus', 'TotalAmount']
-    df_orders['OrderDate'] = pd.to_datetime(df_orders['OrderDate'])
+    # Chuẩn hóa
+    df['Customer ID'] = df['Customer ID'].astype(int).astype(str)
+    df['InvoiceDate'] = pd.to_datetime(df['InvoiceDate'])
+    df['Description'] = df['Description'].str.strip().str.upper()
     
-    # --- 4. XỬ LÝ ORDER ITEMS ---
-    df_items = items[['order_id', 'product_id', 'order_item_id', 'price', 'freight_value']]
-    df_items.columns = ['OrderOriginalID', 'ProductOriginalID', 'Quantity', 'SellingPrice', 'FreightValue']
-    # Quantity trong Olist bị tách dòng, ta gom lại (Group by)
-    df_items = df_items.groupby(['OrderOriginalID', 'ProductOriginalID']).agg({
-        'Quantity': 'count', # Đếm số dòng thành số lượng
-        'SellingPrice': 'mean',
-        'FreightValue': 'sum'
-    }).reset_index()
+    print(f"  Sau khi lọc: {len(df):,} giao dịch hợp lệ")
+    
+    # --- 2. TẠO BẢNG PRODUCTS ---
+    # Mỗi StockCode lấy Description xuất hiện nhiều nhất (mode)
+    product_desc = df.groupby('StockCode')['Description'].agg(lambda x: x.mode().iloc[0]).reset_index()
+    # Giá cơ sở = median price (ổn định hơn mean, tránh outlier)
+    product_price = df.groupby('StockCode')['Price'].median().reset_index()
+    product_price.columns = ['StockCode', 'BasePrice']
+    
+    df_products = product_desc.merge(product_price, on='StockCode')
+    # Tồn kho giả lập dựa trên số lượng bán (realistic hơn random)
+    product_qty = df.groupby('StockCode')['Quantity'].sum().reset_index()
+    product_qty.columns = ['StockCode', 'TotalSold']
+    df_products = df_products.merge(product_qty, on='StockCode')
+    # Stock = tỷ lệ theo tổng bán (giả lập có hàng tồn kho)
+    np.random.seed(42)
+    df_products['CurrentStock'] = (df_products['TotalSold'] * np.random.uniform(0.1, 0.5, len(df_products))).astype(int)
+    df_products = df_products[['StockCode', 'Description', 'BasePrice', 'CurrentStock']]
+    
+    # --- 3. TẠO BẢNG CUSTOMERS ---
+    df_customers = df[['Customer ID', 'Country']].drop_duplicates(subset=['Customer ID'])
+    df_customers.columns = ['CustomerOriginalID', 'Country']
+    
+    # --- 4. TẠO BẢNG ORDERS ---
+    # Tính tổng tiền mỗi đơn hàng
+    order_totals = df.groupby('Invoice').agg(
+        TotalAmount=('Price', lambda x: (x * df.loc[x.index, 'Quantity']).sum()),
+        OrderDate=('InvoiceDate', 'first'),
+        CustomerOriginalID=('Customer ID', 'first')
+    ).reset_index()
+    order_totals.columns = ['InvoiceNo', 'TotalAmount', 'OrderDate', 'CustomerOriginalID']
+    df_orders = order_totals
+    
+    # --- 5. TẠO BẢNG ORDER ITEMS ---
+    # Gom nhóm theo Invoice + StockCode (trường hợp cùng SP xuất hiện nhiều dòng)
+    df_items = df.groupby(['Invoice', 'StockCode']).agg(
+        Quantity=('Quantity', 'sum'),
+        UnitPrice=('Price', 'mean')
+    ).reset_index()
+    df_items.columns = ['InvoiceNo', 'StockCode', 'Quantity', 'UnitPrice']
 
     print("Transform hoàn tất!")
+    print(f"  Products: {len(df_products):,}")
+    print(f"  Customers: {len(df_customers):,}")
+    print(f"  Orders: {len(df_orders):,}")
+    print(f"  OrderItems: {len(df_items):,}")
     
     return {
-        'categories': df_categories,
         'products': df_products,
         'customers': df_customers,
         'orders': df_orders,

@@ -68,10 +68,10 @@ class PriceOptimizer:
             predicted_revenue = sim_price * predicted_qty
             
             results.append({
-                'Scenario': f"{int((mult-1)*100)}%", # -20%, +10%...
-                'Price': round(sim_price, 2),
-                'Predicted_Sales': round(predicted_qty, 2),
-                'Revenue': round(predicted_revenue, 2)
+                'Scenario': f"{int((mult-1)*100)}%",
+                'Price': round(float(sim_price), 2),
+                'Predicted_Sales': round(float(predicted_qty), 2),
+                'Revenue': round(float(predicted_revenue), 2)
             })
 
         # 5. Chuyển thành bảng và tìm giá ngon nhất
@@ -94,8 +94,14 @@ class PriceOptimizer:
         print(df_results.to_string(index=False))
         print(f"GIÁ TỐI ƯU: {best_scenario['Price']} (Doanh thu dự kiến: {best_scenario['Revenue']})")
         print("-" * 30)
-        
-        return best_scenario
+
+        return {
+            'Price': round(float(best_scenario['Price']), 2),
+            'Predicted_Sales': round(float(best_scenario['Predicted_Sales']), 2),
+            'Revenue': round(float(best_scenario['Revenue']), 2),
+            'Revenue_Uplift': str(best_scenario['Revenue_Uplift']),
+            'simulation': df_results.to_dict(orient='records')
+        }
 
     def run_demo(self):
         # Load lại dữ liệu mới nhất để lấy feature

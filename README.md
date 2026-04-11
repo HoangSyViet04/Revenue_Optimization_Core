@@ -22,7 +22,9 @@ Trong thương mại điện tử, hai bài toán lớn nhất ảnh hưởng tr
 - 🔹 **Tối ưu hiệu năng hệ thống** bằng Redis Caching, đảm bảo phản hồi **< 10ms** ngay cả khi chịu tải cao.
 
 ---
+<img width="1857" height="935" alt="image" src="https://github.com/user-attachments/assets/89684cf0-0857-45e4-8a16-69822cf1e665" />
 
+---
 ## 🌟 Tính năng nổi bật
 ### 1. 💰 Bộ máy Định giá Động (Dynamic Pricing Engine)
 
@@ -46,22 +48,24 @@ Trong thương mại điện tử, hai bài toán lớn nhất ảnh hưởng tr
 
 Hệ thống được thiết kế theo mô hình Cache-Aside kết hợp với Clean Architecture để tối ưu hiệu suất và khả năng bảo trì.
 
-```mermaid
-graph TD
-    User[User / Dashboard] -- 1. Request Price/Recs --> Main[FastAPI Backend]
-    Main -- 2. Check Cache --> Redis[(Redis In-Memory)]
-    
-    Redis -- 3a. Cache Hit (Data Found) --> Main
-    
-    Redis -- 3b. Cache Miss (Not Found) --> Main
-    Main -- 4. Run Algorithm --> AI_Engine[AI Core (LightGBM / FP-Growth)]
-    AI_Engine -- 5. Return Result --> Main
-    Main -- 6. Save to Cache (TTL) --> Redis
-    Main -- 7. Show Data --> User
-    
-    style Redis fill:#ff4d4d,stroke:#333,stroke-width:2px,color:white
-    style Main fill:#009688,stroke:#333,stroke-width:2px,color:white
-    style AI_Engine fill:#4d79ff,stroke:#333,stroke-width:2px,color:white
+```
+┌──────────┐    ┌──────────────┐    ┌─────────────┐
+│ Dashboard │───▶│  FastAPI API  │───▶│ Redis Cache │
+│(Streamlit)│◀──│              │◀──│  (TTL-based) │
+└──────────┘    └──────┬───────┘    └─────────────┘
+                       │ cache miss
+                       ▼
+              ┌────────────────┐
+              │   AI Models    │
+              │  LightGBM      │
+              │  FP-Growth     │
+              └────────┬───────┘
+                       │
+                       ▼
+              ┌────────────────┐
+              │  SQL Server    │
+              │  (ETL loaded)  │
+              └────────────────┘
 ```
 
 ## 🛠️ Công nghệ sử dụng (Tech Stack)
@@ -80,36 +84,38 @@ graph TD
 Dự án tuân theo nguyên lý Clean Architecture để đảm bảo tính dễ bảo trì và mở rộng.
 ```bash
 RevenueCore/
+├── run_pipeline.py              # ETL orchestrator
+├── requirements.txt
+├── .env                        
 │
-├── .env                       # Cấu hình môi trường (Redis Host, Secrets)
-├── docker-compose.yml         # Điều phối Container
-├── requirements.txt           # Các thư viện phụ thuộc
+├── src/
+│   ├── config.py                # Đọc .env, connection string
+│   ├── redis_client.py          # Redis connection + logging
+│   ├── database/
+│   │   ├── connection.py        # SQLAlchemy engine
+│   │   └── schema.py           # Tạo bảng SQL Server
+│   ├── etl/
+│   │   ├── extract.py           # Đọc CSV
+│   │   ├── transform.py         # Làm sạch + chuẩn hóa
+│   │   └── load.py              # Insert vào SQL
+│   └── models/
+│       ├── feature_engineering.py   # 12 features cho pricing
+│       ├── pricing_model.py         # Train LightGBM
+│       ├── optimize_price.py        # Mô phỏng giá tối ưu
+│       ├── recsys_engineering.py    # Chuẩn bị basket data
+│       └── recsys_model.py          # FP-Growth association rules
 │
-├── src/                       # CORE LOGIC (Lõi xử lý)
-│   ├── redis_client.py        # Kết nối Redis & Wrapper ghi Log
-│   ├── database/              # Xử lý kết nối Database
-│   ├── etl/                   # Pipelines Trích xuất-Chuyển đổi-Nạp dữ liệu
-│   └── models/                # Mô hình AI/ML
-│       ├── optimize_price.py      # Logic định giá (LightGBM)
-│       ├── pricing_model.py      
-│       ├── recsys_model.py        # Logic gợi ý (FP-Growth)
-│       ├── recsys_engineering.py       
-│       └── feature_engineering.py # Tiền xử lý dữ liệu
+├── api/
+│   ├── main.py                  # FastAPI endpoints
+│   └── schemas.py               # Pydantic models
 │
-├── api/                       # BACKEND (FastAPI)
-│   ├── main.py                # Điểm khởi chạy API & Endpoints
-│   └── schemas.py             # Mô hình dữ liệu Pydantic
+├── frontend/
+│   └── index.html                   #  UI
 │
-├── dashboard/                 # FRONTEND (Streamlit)
-│   └── app.py                 # Giao diện Admin Dashboard
-│
-├── data/                      # KHO DỮ LIỆU
-│   └── raw/                   # Dữ liệu thô (Dataset Olist)
-│   
-│
-└── model_registry/            # KHO MODEL
-    ├── pricing/               # Model định giá đã huấn luyện (.pkl)
-    └── recsys/                # Luật kết hợp đã lưu (.pkl)
+├── data/raw/                    # UK Online Retail II CSV
+├── model_registry/              # Trained models (.pkl)
+├── docs/                        # Tài liệu chi tiết
+└── tests/
 ```
 
 ## 🚀 Cài đặt & Hướng dẫn sử dụng
@@ -151,18 +157,18 @@ REDIS_DB=0
 **Bước 1: Khởi động Backend API**
 
 ```bash
+# 1. Tạo bảng SQL Server
+python -c "from src.database.schema import create_schema; create_schema()"
+
+# 2. ETL pipeline (load data vào SQL)
+python run_pipeline.py
+
+# 3. Train pricing model
+python src/models/pricing_model.py
+
+# 4. Khởi động API (port 8000)
 uvicorn api.main:app --reload
 ```
-
-API sẽ chạy tại: http://127.0.0.1:8000
-
-**Bước 2: Khởi động Admin Dashboard**
-
-```bash
-streamlit run dashboard/app.py
-```
-
-Dashboard sẽ mở tại: http://localhost:8501
 
 ## 📊 Kịch bản sử dụng (Usage Scenarios)
 
@@ -179,7 +185,7 @@ Dashboard sẽ mở tại: http://localhost:8501
 2. Kiểm tra chỉ số Cache Hits để đảm bảo Redis đang tối ưu hóa hiệu suất.
 3. Kiểm tra trạng thái sức khỏe hệ thống (Health Check).
 
-## 🔮 Định hướng phát triển (Roadmap)
+## Định hướng phát triển (Roadmap)
 
 - [ ] Tích hợp framework A/B Testing cho các chiến lược giá.
 - [ ] Nâng cấp Recommender Engine sang Deep Learning.

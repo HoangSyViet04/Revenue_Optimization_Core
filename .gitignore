@@ -21,3 +21,7 @@ test_*.py
 .coverage
 coverage.xml
 htmlcov/
+
+docs/
+
+demo.jpg

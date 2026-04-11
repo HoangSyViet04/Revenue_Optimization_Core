@@ -1,0 +1,10 @@
+artifact_location: file:///D:/Project/RevenueCore/mlruns/448470887631236608/models/m-e30c4994404d49399de38813cf7d7b16/artifacts
+creation_timestamp: 1775879652950
+experiment_id: '448470887631236608'
+last_updated_timestamp: 1775879660756
+model_id: m-e30c4994404d49399de38813cf7d7b16
+model_type: null
+name: model
+source_run_id: d6606449d7374a5182049e1a27623bbe
+status: 2
+status_message: null

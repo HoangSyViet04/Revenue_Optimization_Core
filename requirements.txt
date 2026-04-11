@@ -10,3 +10,5 @@ requests
 plotly
 
 redis
+mlflow
+lightgbm

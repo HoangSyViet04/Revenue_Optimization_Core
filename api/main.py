@@ -1,9 +1,12 @@
 import sys
 import os
 import json
+import pandas as pd
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 
@@ -17,6 +20,13 @@ from src.redis_client import get_redis_client, log_activity, get_system_logs
 
 app = FastAPI(title="RevenueCore: Pricing & RecSys AI", version="2.0")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Khởi tạo Redis Client
 redis_client = get_redis_client()
 
@@ -24,6 +34,7 @@ redis_client = get_redis_client()
 price_optimizer = None
 latest_features = None
 recsys_engine = None
+product_info = None
 
 # --- REQUEST MODELS ---
 class ProductRequest(BaseModel):
@@ -35,7 +46,7 @@ class RecommendationRequest(BaseModel):
 # --- STARTUP EVENT ---
 @app.on_event("startup")
 def load_resources():
-    global price_optimizer, latest_features, recsys_engine
+    global price_optimizer, latest_features, recsys_engine, product_info
     print("Đang khởi động hệ thống RevenueCore AI...")
     
     # 1. Load Pricing Model
@@ -48,22 +59,86 @@ def load_resources():
     # Chạy lại train với tham số nhỏ để load luật vào RAM
     print("... Loading Recommendation Engine")
     recsys_engine = RecommendationEngine()
-    # Dùng đúng tham số ông vừa chạy thành công
-    recsys_engine.train(min_support=0.00005, min_confidence=0.005)
+    # UK Retail dataset: support=2%, confidence=20% (dữ liệu phong phú hơn)
+    recsys_engine.train(min_support=0.02, min_confidence=0.2)
     
+    # 3. Load Product Info (for /products/top and /popular-items)
+    print("... Loading Product Info from SQL")
+    try:
+        from src.database.connection import get_db_engine
+        _engine = get_db_engine()
+        product_info = pd.read_sql("SELECT ProductID, Description, BasePrice FROM Products", _engine)
+        print(f"... Loaded {len(product_info)} products")
+    except Exception as e:
+        print(f"... Warning: Could not load product info: {e}")
+
     print("SERVER ĐÃ SẴN SÀNG! (Pricing + RecSys Ready)")
 
 # --- ENDPOINTS ---
 
-@app.get("/")
-def home():
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse(url="/app")
+
+@app.get("/health")
+def health_check():
     return {"message": "RevenueCore AI is running!"}
 
-# API MỚI: Lấy danh sách Logs
+@app.get("/app", response_class=HTMLResponse, include_in_schema=False)
+def serve_dashboard():
+    html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend', 'index.html')
+    with open(html_path, 'r', encoding='utf-8') as f:
+        return f.read()
+
+# Activity Logs
 @app.get("/logs")
 def get_logs_endpoint():
     logs = get_system_logs()
     return {"logs": logs}
+
+# Top selling products (for dashboard dropdown)
+@app.get("/products/top")
+def get_top_products():
+    global latest_features, product_info
+    if latest_features is None or product_info is None:
+        return {"products": []}
+    top_pids = (
+        latest_features.groupby('ProductID')['QuantitySold']
+        .sum().sort_values(ascending=False).head(30).index.tolist()
+    )
+    result = []
+    for pid in top_pids:
+        row = product_info[product_info['ProductID'] == pid]
+        if not row.empty:
+            result.append({
+                "id": int(pid),
+                "description": str(row['Description'].iloc[0]),
+                "base_price": round(float(row['BasePrice'].iloc[0]), 2)
+            })
+    return {"products": result}
+
+# Popular item descriptions (for recommendation cart selector)
+@app.get("/popular-items")
+def get_popular_items():
+    global latest_features, product_info
+    if latest_features is None or product_info is None:
+        return {"items": []}
+    top_pids = (
+        latest_features.groupby('ProductID')['QuantitySold']
+        .sum().sort_values(ascending=False).head(80).index.tolist()
+    )
+    items = []
+    seen = set()
+    for pid in top_pids:
+        row = product_info[product_info['ProductID'] == pid]
+        if not row.empty:
+            desc = str(row['Description'].iloc[0]).strip()
+            if desc and desc not in seen:
+                seen.add(desc)
+                items.append(desc)
+        if len(items) >= 40:
+            break
+    return {"items": items}
 
 # API 1: Tối ưu giá (CÓ REDIS CACHE)
 @app.post("/optimize")
@@ -94,10 +169,11 @@ def optimize_price_endpoint(request: ProductRequest):
     
     response_data = {
         "product_id": pid,
-        "current_price": current_price,
+        "current_price": round(float(current_price), 2),
         "optimal_price": result['Price'],
         "predicted_revenue": result['Revenue'],
-        "revenue_uplift": result['Revenue_Uplift']
+        "revenue_uplift": result['Revenue_Uplift'],
+        "simulation": result.get('simulation', [])
     }
     
     log_activity("AI COMPUTE", f"Optimized Price for Product {pid}")
